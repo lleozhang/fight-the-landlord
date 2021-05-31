@@ -11,8 +11,9 @@
 #include <cassert>
 #include <cstring> // 注意memset是cstring里的
 #include <algorithm>
+#include <cmath>
 #include "jsoncpp/json.h" // 在平台上，C++编译时默认包含此库
-
+using namespace std;
 using std::set;
 using std::sort;
 using std::string;
@@ -95,10 +96,221 @@ string cardComboStrings[] = {
 	"INVALID"};
 #endif
 
+#include <ctime>
+clock_t s,e;
+int est_dfs(int *cyt,int typ,int las)//将牌拆解成不同的牌组进行估分，为避免重复按牌型顺序进行拆解，一个牌组的总评分为各牌型的评分之和减去牌型数量
+{
+	e=clock();
+	if(double(e-s)/CLOCKS_PER_SEC>0.85)return 0;
+	bool fl=0;
+	int cnt=0;
+	for(int i=0;i<=14;i++)if(cyt[i]){fl=1;cnt+=cyt[i];}
+	if(!fl)return 0;
+	int tempret=-0x3f3f3f3f;
+	if(typ>7||las>14)return -0x3f3f3f3f;
+	tempret=max(tempret,est_dfs(cyt,typ+1,0));//不使用本牌型
+	if(typ==1)//王炸
+	{
+		bool fl=0;
+		if(cyt[14]&&cyt[13])
+		{
+			cyt[14]--,cyt[13]--;
+			int temp=est_dfs(cyt,typ+1,0)-1;
+			cyt[14]++,cyt[13]++;
+			tempret=max(tempret,temp+30);
+			fl=1;
+		}
+		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
+	}else if(typ==2)//四带
+	{
+		bool fl=0;
+		for(int i=las;i<=12;i++)
+		{
+			if(cyt[i]!=4)continue;
+			cyt[i]=0;
+			fl=1;
+			tempret=max(tempret,15+i+est_dfs(cyt,typ,i+1)-1);
+			tempret=max(tempret,est_dfs(cyt,typ,i+1));
+			for(int j=0;j<=14;j++)//四带一/二
+			{
+				for(int k=j+1;k<=14;k++)
+				{
+					if(cyt[j]&&cyt[k])
+					{
+						cyt[j]--,cyt[k]--;
+						tempret=max(tempret,7+i+est_dfs(cyt,typ,i+1)-1);
+						if(cyt[j]&&cyt[k])
+						{
+							cyt[j]--,cyt[k]--;
+							tempret=max(tempret,7+i+est_dfs(cyt,typ,i+1)-1);
+							cyt[j]++,cyt[k]++;
+						}
+						cyt[j]++,cyt[k]++;
+					}
+				}
+			}
+			cyt[i]=4;
+			break;
+		}
+		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
+	}else if(typ==3)//三带
+	{
+		bool fl=0;
+		for(int i=las;i<=12;i++)
+		{
+			if(cyt[i]<3)continue;
+			fl=1;
+			tempret=max(tempret,est_dfs(cyt,typ,i+1));
+			cyt[i]-=3;
+			for(int j=0;j<=14;j++)
+			{
+				if(cyt[j])
+				{
+					cyt[j]--;
+					tempret=max(tempret,i+3+est_dfs(cyt,typ,i+1)-1);
+					if(cyt[j])
+					{
+						cyt[j]--;
+						tempret=max(tempret,i+3+est_dfs(cyt,typ,i+1)-1);
+						cyt[j]++;
+					}
+					cyt[j]++;
+				}
+			}
+			cyt[i]+=3;
+			break;
+		}
+		for(int i=las;i<12;i++)
+		{
+			if(cyt[i]>=3&&cyt[i+1]>=3)
+			{
+				cyt[i]-=3,cyt[i+1]-=3;
+				for(int j=0;j<=14;j++)
+				{
+					for(int k=j+1;k<=14;k++)
+					{
+						if(cyt[j]&&cyt[k]&&i!=j&&i!=k)
+						{
+							cyt[j]--,cyt[k]--;
+							tempret=max(tempret,i+9+est_dfs(cyt,typ,i+2)-1);
+							if(cyt[j]&&cyt[k])
+							{
+								cyt[j]--,cyt[k]--;
+								tempret=max(tempret,i+9+est_dfs(cyt,typ,i+2)-1);
+								cyt[j]++,cyt[k]++;
+							}
+							cyt[j]++,cyt[k]++;
+						}
+					}
+				}
+				cyt[i]+=3,cyt[i+1]+=3;
+				break;
+			}
+		}
+		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
+	}else if(typ==4)//单顺
+	{
+		tempret=max(tempret,est_dfs(cyt,typ,las+1));
+		bool fl=0;
+		for(int i=5;i<=13;i++)
+		{
+			bool flag=0;
+			for(int j=0;j<i;j++)
+			{
+				if(!cyt[las+j]||las+j>11){flag=1;break;}
+			}
+			if(flag)break;
+			else 
+			{
+				fl=1;
+				for(int j=0;j<i;j++)cyt[las+j]--;
+				tempret=max(tempret,i/5+las+est_dfs(cyt,typ,las+1)-1);
+				for(int j=0;j<i;j++)cyt[las+j]++;
+			}
+		}
+		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
+	}else if(typ==5)//双顺
+	{
+		tempret=max(tempret,est_dfs(cyt,typ,las+1));
+		bool fl=0;
+		for(int i=3;i<=13;i++)
+		{
+			bool flag=0;
+			for(int j=0;j<i;j++)
+			{
+				if(cyt[las+j]<2||las+j>11){flag=1;break;}
+			}
+			if(flag)break;
+			else
+			{
+				fl=1;
+				for(int j=0;j<i;j++)cyt[las+j]-=2;
+				tempret=max(tempret,i/3+las+est_dfs(cyt,typ,las+1)-1);
+				for(int j=0;j<i;j++)cyt[las+j]+=2;
+			}
+		}
+		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
+	}else if(typ==6)//对
+	{
+		bool fl=0;
+		for(int i=las;i<=12;i++)
+		{
+			if(cyt[i]<2)continue;
+			tempret=max(tempret,est_dfs(cyt,typ,i+1));
+			cyt[i]-=2;
+			tempret=max(tempret,max((i-10),0)+est_dfs(cyt,typ,i+1)-1);
+			cyt[i]+=2;
+			fl=1;		
+			break;
+		}
+		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
+	}else if(typ==7)//单
+	{
+		int temps=0;
+		for(int i=0;i<=14;i++)temps+=max(0,(i-11)*cyt[i]);
+		temps-=cnt;
+		tempret=max(tempret,temps);
+	}
+	return tempret;
+}
 // 用0~53这54个整数表示唯一的一张牌
 using Card = short;
 constexpr Card card_joker = 52;
 constexpr Card card_JOKER = 53;
+
+/* 状态 */
+
+// 我的牌有哪些
+set<Card> myCards;
+
+// 地主明示的牌有哪些
+set<Card> landlordPublicCards;
+
+// 大家从最开始到现在都出过什么
+vector<vector<Card>> whatTheyPlayed[PLAYER_COUNT];
+
+// 当前要出的牌需要大过谁
+
+
+// 大家还剩多少牌
+short cardRemaining[PLAYER_COUNT] = {17, 17, 17};
+
+// 我是几号玩家（0-地主，1-农民甲，2-农民乙）
+int myPosition;
+
+// 地主位置
+int landlordPosition = -1;
+
+// 地主叫分
+int landlordBid = -1;
+
+// 阶段
+Stage stage = Stage::BIDDING;
+
+int lastplayer;//上一个玩家是谁
+
+// 自己的第一回合收到的叫分决策
+vector<int> bidInput;
 
 // 除了用0~53这54个整数表示唯一的牌，
 // 这里还用另一种序号表示牌的大小（不管花色），以便比较，称作等级（Level）
@@ -360,46 +572,1602 @@ struct CardCombo
 	/**
 	* 判断指定牌组能否大过当前牌组（这个函数不考虑过牌的情况！）
 	*/
-	bool canBeBeatenBy(const CardCombo &b) const
+
+
+	void debugPrint()
 	{
-		if (comboType == CardComboType::INVALID || b.comboType == CardComboType::INVALID)
-			return false;
-		if (b.comboType == CardComboType::ROCKET)
-			return true;
-		if (b.comboType == CardComboType::BOMB)
-			switch (comboType)
-			{
-			case CardComboType::ROCKET:
-				return false;
-			case CardComboType::BOMB:
-				return b.comboLevel > comboLevel;
-			default:
-				return true;
-			}
-		return b.comboType == comboType && b.cards.size() == cards.size() && b.comboLevel > comboLevel;
+#ifndef _BOTZONE_ONLINE
+		std::cout << "【" << cardComboStrings[(int)comboType] << "共" << cards.size() << "张，大小序" << comboLevel << "】";
+#endif
 	}
-
-	/**
-	* 从指定手牌中寻找第一个能大过当前牌组的牌组
-	* 如果随便出的话只出第一张
-	* 如果不存在则返回一个PASS的牌组
-	*/
-	template <typename CARD_ITERATOR>
-	CardCombo findFirstValid(CARD_ITERATOR begin, CARD_ITERATOR end) const
-	{
-		if (comboType == CardComboType::PASS) // 如果不需要大过谁，只需要随便出
+};
+CardCombo lastValidCombo;
+bool canBeBeatenBy(const CardCombo &b) 
+{
+	if (lastValidCombo.comboType == CardComboType::INVALID || b.comboType == CardComboType::INVALID)
+		return false;
+	if (b.comboType == CardComboType::ROCKET)
+		return true;
+	if (b.comboType == CardComboType::BOMB)
+		switch (lastValidCombo.comboType)
 		{
-			CARD_ITERATOR second = begin;
-			second++;
-			return CardCombo(begin, second); // 那么就出第一张牌……
+		case CardComboType::ROCKET:
+			return false;
+		case CardComboType::BOMB:
+			return b.comboLevel > lastValidCombo.comboLevel;
+		default:
+			return true;
 		}
+	return b.comboType == lastValidCombo.comboType && b.cards.size() == lastValidCombo.cards.size() && b.comboLevel > lastValidCombo.comboLevel;
+}
 
-		// 然后先看一下是不是火箭，是的话就过
-		if (comboType == CardComboType::ROCKET)
+/**
+* 从指定手牌中寻找第一个能大过当前牌组的牌组
+* 如果随便出的话只出第一张
+* 如果不存在则返回一个PASS的牌组
+*/
+using namespace std;
+bool check(int *cyt)//检验是否能一次出完
+{
+	int cnt=0;
+	for(int i=0;i<15;i++)cnt+=cyt[i];
+	if(cnt==1)return 1;
+	else if(cnt==2)
+	{
+		for(int i=0;i<15;i++)if(cyt[i]==2)return 1;
+		if(cyt[13]&&cyt[14])return 1;
+		return 0;
+	}else if(cnt==3)
+	{
+		for(int i=0;i<15;i++)if(cyt[i]==3)return 1;
+		return 0;
+	}else if(cnt==4)
+	{
+		for(int i=0;i<15;i++)if(cyt[i]==4||cyt[i]==3)return 1;
+	}
+	for(int i=0;i<15;i++)
+	{
+		if(cyt[i]==3)
+		{
+			if(cyt[i+1]==3)
+			{
+				for(int j=0;j<15;j++)
+				{
+					for(int k=j+1;k<15;k++)
+					{
+						if(cyt[j]==1&&cyt[k]==1&&cnt==8)return 1;
+						else if(cyt[j]==2&&cyt[k]==2&&cnt==10)return 1;
+					}
+				}
+			}
+			for(int j=0;j<15;j++)if(cyt[j]==2&&cnt==5)return 1;
+		}else if(cyt[i]==4)
+		{
+			for(int j=0;j<15;j++)
+			{
+				for(int k=j+1;k<15;k++)
+				{
+					if(cyt[j]==1&&cyt[k]==1&&cnt==6)return 1;
+					else if(cyt[j]==2&&cyt[k]==2&&cnt==8)return 1;
+				}
+			}
+		}
+	}
+	for(int i=0;i<12;i++)
+	{
+		bool flag=0;
+		for(int j=0;j<cnt;j++)
+		{
+			if(cyt[i+j]!=1||i+j>11){flag=1;break;}
+		}
+		if(!flag)return 1;
+	}
+	if(cnt%2==0)
+	{
+		for(int i=0;i<12;i++)
+		{
+			bool flag=0;
+			for(int j=0;j<cnt/2;j++)
+			{
+				if(cyt[i+j]!=2||i+j>11){flag=1;break;}
+			}
+			if(!flag)return 1;
+		}
+	}
+	return 0;
+}
+template <typename CARD_ITERATOR>
+CardCombo find_single_line(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int l=5,int r=13,int las=-1)
+{
+	set <Card> S;
+	bool fl=0;
+	int cnt=0;
+	for(int i=r;i>=l;i--)//单顺
+	{
+		for(int st=las+1;st<12;st++)
+		{
+			bool flag=0;
+			for(int j=0;j<i;j++)
+			{
+				if(!cyt[j+st]||st+j>11||cyt[st+j]==4){flag=1;break;}
+				else if(cyt[j+st]==2)cnt++;
+			}
+			if(flag||cnt>2)continue;
+			else 
+			{
+				fl=1;
+				for(int j=0;j<i;j++)
+				{
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==j+st){S.insert(*it);break;}
+					}
+				}
+				break;
+			}
+		}
+		if(fl)break;
+	}
+	if(fl)
+	{
+		return CardCombo(S.begin(),S.end());
+	}
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo find_double_line(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int l=5,int r=13,int las=-1)
+{
+	set<Card>S;
+	bool fl=0;
+	for(int i=r;i>=l;i--)//双顺
+	{
+		for(int st=las+1;st<11;st++)
+		{
+			bool flag=0;
+			int cnt=0;
+			for(int j=0;j<i;j++)
+			{
+				if(cyt[st+j]<2||cyt[st+j]==4||st+j>11){flag=1;break;}
+				else if(cyt[st+j]==3)cnt++;
+			}
+			if(flag||cnt>1)continue;
+			else
+			{
+				fl=1;
+				for(int j=0;j<i;j++)
+				{
+					int cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==st+j)
+						{
+							S.insert(*it),cct++;
+							if(cct==2)break;
+						}
+					}
+				}
+				break;
+			}
+		}
+		if(fl){break;}
+	}
+	if(fl)
+	{
+		return CardCombo(S.begin(),S.end());
+	}
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo find_plane_one(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int las=-1)
+{
+	int *ctt=new int[25];
+	memcpy(ctt,cyt,sizeof(ctt));
+	set<Card>S;
+	bool fl=0;
+	for(int i=las+1;i<11;i++)//飞机
+	{
+		if(cyt[i]==3&&cyt[i+1]==3)
+		{
+			
+			ctt[i]-=3,ctt[i+1]-=3;
+			CardCombo t1=find_single_line(ctt,begin,end,5,13);
+			CardCombo t2=find_double_line(ctt,begin,end,3,10);
+			for(int j=0;j<=11;j++)
+			{
+				for(int k=j+1;k<=11;k++)
+				{
+					if(cyt[j]==1&&cyt[k]==1&&i!=j&&i!=k)
+					{
+						ctt[j]--,ctt[k]--;
+						CardCombo t3=find_single_line(ctt,begin,end,5,13);
+						CardCombo t4=find_double_line(ctt,begin,end,3,10);
+						if(t1.comboType!=CardComboType::PASS&&t3.comboType==CardComboType::PASS)
+						{
+							ctt[j]++,ctt[k]++;
+							continue;
+						}
+						if(t2.comboType!=CardComboType::PASS&&t4.comboType==CardComboType::PASS)
+						{
+							ctt[j]++,ctt[k]++;
+							continue;
+						}
+						fl=1;
+						int cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==i)
+							{
+								S.insert(*it),cct++;
+								if(cct==3)break;
+							}
+						}
+						cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==i+1)
+							{
+								S.insert(*it),cct++;
+								if(cct==3)break;
+							}
+						}
+						cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==j)
+							{
+								S.insert(*it),cct++;
+								if(cct==1)break;
+							}
+						}
+						cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==k)
+							{
+								S.insert(*it),cct++;
+								if(cct==1)break;
+							}
+						}
+						return CardCombo(S.begin(),S.end());
+					}
+				}
+			}
+			if(!fl)
+			{
+				for(int j=0;j<=14;j++)
+				{
+					for(int k=j+1;k<=14;k++)
+					{
+						if(cyt[j]<3&&cyt[k]<3&&cyt[j]&&cyt[k]&&i!=j&&i!=k)
+						{
+							
+							ctt[j]--,ctt[k]--;
+							CardCombo t3=find_single_line(ctt,begin,end);
+							CardCombo t4=find_double_line(ctt,begin,end);
+							if(t1.comboType!=CardComboType::PASS&&t3.comboType==CardComboType::PASS)
+							{
+								ctt[j]++,ctt[k]++;
+								continue;
+							}
+							if(t2.comboType!=CardComboType::PASS&&t4.comboType==CardComboType::PASS)
+							{
+								ctt[j]++,ctt[k]++;
+								continue;
+							}
+							fl=1;
+							int cct=0;
+							for(auto it=begin;it!=end;it++)
+							{
+								if(card2level(*it)==i)
+								{
+									S.insert(*it),cct++;
+									if(cct==3)break;
+								}
+							}
+							cct=0;
+							for(auto it=begin;it!=end;it++)
+							{
+								if(card2level(*it)==i+1)
+								{
+									S.insert(*it),cct++;
+									if(cct==3)break;
+								}
+							}
+							cct=0;
+							for(auto it=begin;it!=end;it++)
+							{
+								if(card2level(*it)==j)
+								{
+									S.insert(*it),cct++;
+									if(cct==1)break;
+								}
+							}
+							cct=0;
+							for(auto it=begin;it!=end;it++)
+							{
+								if(card2level(*it)==k)
+								{
+									S.insert(*it),cct++;
+									if(cct==1)break;
+								}
+							}
+							return CardCombo(S.begin(),S.end());
+						}
+					}
+				}
+			}
+			if(fl)break;
+		}
+		if(fl)return CardCombo(S.begin(),S.end());
+	}
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo find_plane_two(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int las=-1)
+{
+	int *ctt=new int[25];
+	memcpy(ctt,cyt,sizeof(ctt));
+	set<Card>S;
+	bool fl=0;
+	for(int i=las+1;i<11;i++)//飞机
+	{
+		if(cyt[i]==3&&cyt[i+1]==3)
+		{
+			ctt[i]-=3,ctt[i+1]-=3;
+			CardCombo t1=find_single_line(ctt,begin,end,5,13);
+			CardCombo t2=find_double_line(ctt,begin,end,3,10);
+			for(int j=0;j<=11;j++)
+			{
+				for(int k=j+1;k<=11;k++)
+				{
+					if(cyt[j]==2&&cyt[k]==2&&i!=j&&i!=k)
+					{
+						ctt[j]--,ctt[k]--;
+						CardCombo t3=find_single_line(ctt,begin,end,5,13);
+						CardCombo t4=find_double_line(ctt,begin,end,3,10);
+						if(t1.comboType!=CardComboType::PASS&&t3.comboType==CardComboType::PASS)
+						{
+							ctt[j]+=2,ctt[k]+=2;
+							continue;
+						}
+						if(t2.comboType!=CardComboType::PASS&&t4.comboType==CardComboType::PASS)
+						{
+							ctt[j]+=2,ctt[k]+=2;
+							continue;
+						}
+						fl=1;
+						int cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==i)
+							{
+								S.insert(*it),cct++;
+								if(cct==3)break;
+							}
+						}
+						cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==i+1)
+							{
+								S.insert(*it),cct++;
+								if(cct==3)break;
+							}
+						}
+						cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==j)
+							{
+								S.insert(*it),cct++;
+								if(cct==2)break;
+							}
+						}
+						cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==k)
+							{
+								S.insert(*it),cct++;
+								if(cct==2)break;
+							}
+						}
+					}
+				}
+			}
+			if(fl)break;
+		}
+		if(fl)return CardCombo(S.begin(),S.end());
+	}
+	return CardCombo();
+}
+
+template <typename CARD_ITERATOR>
+CardCombo find_three_two(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int las=-1)
+{
+	bool fl=0;
+	set<Card>S;
+	int *ctt=new int[25];
+	memcpy(ctt,cyt,sizeof(ctt));
+	for(int i=las+1;i<12;i++)//三带
+	{
+		if(cyt[i]!=3)continue;
+		ctt[i]-=3;
+		CardCombo t1=find_single_line(ctt,begin,end,5,13);
+		CardCombo t2=find_double_line(ctt,begin,end,3,10);
+		for(int j=0;j<=11;j++)
+		{
+			if(cyt[j]==2&&i!=j)
+			{
+				ctt[j]-=2;
+				CardCombo t3=find_single_line(ctt,begin,end,5,13);
+				CardCombo t4=find_double_line(ctt,begin,end,3,10);
+				if(t1.comboType!=CardComboType::PASS&&t3.comboType==CardComboType::PASS)
+				{
+					ctt[j]+=2;
+					continue;
+				}
+				if(t2.comboType!=CardComboType::PASS&&t4.comboType==CardComboType::PASS)
+				{
+					ctt[j]+=2;
+					continue;
+				}
+				int cct=0;
+				fl=1;
+				for(auto it=begin;it!=end;it++)
+				{
+					if(card2level(*it)==i)
+					{
+						S.insert(*it),cct++;
+						if(cct==3)break;
+					}
+				}
+				cct=0;
+				for(auto it=begin;it!=end;it++)
+				{
+					if(card2level(*it)==j)
+					{
+						S.insert(*it),cct++;
+						if(cct==2)break;
+					}
+				}
+				return CardCombo(S.begin(),S.end());
+			}
+		}
+		if(fl)break;
+	}
+	if(fl)
+	{
+		return CardCombo(S.begin(),S.end());
+	}
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo find_three_one(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int las=-1)
+{
+	bool fl=0;
+	set<Card>S;
+	int *ctt=new int[25];
+	memcpy(ctt,cyt,sizeof(ctt));
+	for(int i=las+1;i<12;i++)//三带
+	{
+		if(cyt[i]!=3)continue;
+		ctt[i]-=3;
+		CardCombo t1=find_single_line(ctt,begin,end,5,13);
+		CardCombo t2=find_double_line(ctt,begin,end,3,10);
+		for(int j=0;j<=11;j++)
+		{
+			if(cyt[j]==1&&i!=j)
+			{
+				ctt[j]--;
+				CardCombo t3=find_single_line(ctt,begin,end,5,13);
+				CardCombo t4=find_double_line(ctt,begin,end,3,10);
+				if(t1.comboType!=CardComboType::PASS&&t3.comboType==CardComboType::PASS)
+				{
+					ctt[j]++;
+					continue;
+				}
+				if(t2.comboType!=CardComboType::PASS&&t4.comboType==CardComboType::PASS)
+				{
+					ctt[j]++;
+					continue;
+				}
+				fl=1;
+				int cct=0;
+				for(auto it=begin;it!=end;it++)
+				{
+					if(card2level(*it)==i)
+					{
+						S.insert(*it),cct++;
+						if(cct==3)break;
+					}
+				}
+				cct=0;
+				for(auto it=begin;it!=end;it++)
+				{
+					if(card2level(*it)==j)
+					{
+						S.insert(*it),cct++;
+						if(cct==1)break;
+					}
+				}
+				return CardCombo(S.begin(),S.end());
+			}
+			if(fl)break;
+		}
+		if(!fl)
+		{
+			for(int j=0;j<=14;j++)
+			{
+				if(cyt[j]<3&&i!=j&&cyt[j])
+				{
+					ctt[j]--;
+					CardCombo t3=find_single_line(ctt,begin,end,5,13);
+					CardCombo t4=find_double_line(ctt,begin,end,3,10);
+					if(t1.comboType!=CardComboType::PASS&&t3.comboType==CardComboType::PASS)
+					{
+						ctt[j]++;
+						continue;
+					}
+					if(t2.comboType!=CardComboType::PASS&&t4.comboType==CardComboType::PASS)
+					{
+						ctt[j]++;
+						continue;
+					}
+					fl=1;
+					int cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==i)
+						{
+							S.insert(*it),cct++;
+							if(cct==3)break;
+						}
+					}
+					cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==j)
+						{
+							S.insert(*it),cct++;
+							if(cct==1)break;
+						}
+					}
+					return CardCombo(S.begin(),S.end());
+				}
+				if(fl)break;
+			}
+		}
+	}
+	if(fl)
+	{
+		return CardCombo(S.begin(),S.end());
+	}
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo find_bomb(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int las=-1)
+{
+	set<Card>S;
+	bool fl=0;
+	for(int i=las+1;i<=12;i++)
+	{
+		if(cyt[i]==4)
+		{
+			fl=1;
+			for(auto it=begin;it!=end;it++)
+			{
+				if(card2level(*it)==i)S.insert(*it);
+			}
+			break;
+		}
+	}
+	if(!fl&&cyt[13]&&cyt[14])
+	{
+		fl=1;
+		for(auto it=begin;it!=end;it++)
+		{
+			if(card2level(*it)==13||card2level(*it)==14)S.insert(*it);
+		}
+	}
+	if(fl)return CardCombo(S.begin(),S.end());
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo find_plane(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int las=-1)
+{
+	set<Card>S;
+	bool fl=0;
+	for(int i=las+1;i<11;i++)
+	{
+		if(cyt[i]!=3||cyt[i+1]!=3)continue;
+		int cct=0;
+		fl=1;
+		for(auto it=begin;it!=end;it++)
+		{
+			if(card2level(*it)==i)
+			{
+				S.insert(*it),cct++;
+				if(cct==3)break;
+			}
+		}
+		cct=0;
+		for(auto it=begin;it!=end;it++)
+		{
+			if(card2level(*it)==i+1)
+			{
+				S.insert(*it),cct++;
+				if(cct==3)break;
+			}
+		}
+		return CardCombo(S.begin(),S.end());
+	}
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo find_four_one(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int las=-1)
+{
+	int *ctt=new int[25];
+	memcpy(ctt,cyt,sizeof(ctt));
+	set<Card>S;
+	bool fl=0;
+	for(int i=las+1;i<=11;i++)//飞机
+	{
+		if(cyt[i]<4)continue;
+		ctt[i]-=4;
+		CardCombo t1=find_single_line(ctt,begin,end,5,13);
+		CardCombo t2=find_double_line(ctt,begin,end,3,10);
+		for(int j=0;j<=11;j++)
+		{
+			for(int k=j+1;k<=11;k++)
+			{
+				if(cyt[j]==1&&cyt[k]==1)
+				{
+					ctt[j]--,ctt[k]--;
+					CardCombo t3=find_single_line(ctt,begin,end,5,13);
+					CardCombo t4=find_double_line(ctt,begin,end,3,10);
+					if(t1.comboType!=CardComboType::PASS&&t3.comboType==CardComboType::PASS&&t1.packs[0].level<4)
+					{
+						ctt[j]++,ctt[k]++;
+						continue;
+					}
+					if(t2.comboType!=CardComboType::PASS&&t4.comboType==CardComboType::PASS&&t2.packs.size()>=5)
+					{
+						ctt[j]++,ctt[k]++;
+						continue;
+					}
+					fl=1;
+					int cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==i)
+						{
+							S.insert(*it),cct++;
+							if(cct==4)break;
+						}
+					}
+					cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==j)
+						{
+							S.insert(*it),cct++;
+							if(cct==1)break;
+						}
+					}
+					cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==k)
+						{
+							S.insert(*it),cct++;
+							if(cct==1)break;
+						}
+					}
+					return CardCombo(S.begin(),S.end());
+				}
+			}
+		}
+		if(!fl)
+		{
+			for(int j=0;j<=14;j++)
+			{
+				for(int k=j+1;k<=14;k++)
+				{
+					if(cyt[j]<3&&cyt[k]<3&&cyt[j]&&cyt[k]&&i!=j&&i!=k)
+					{
+						ctt[j]--,ctt[k]--;
+						CardCombo t3=find_single_line(ctt,begin,end);
+						CardCombo t4=find_double_line(ctt,begin,end);
+						if(t1.comboType!=CardComboType::PASS&&t3.comboType==CardComboType::PASS&&t1.packs[0].level<4)
+						{
+							ctt[j]++,ctt[k]++;
+							continue;
+						}
+						if(t2.comboType!=CardComboType::PASS&&t4.comboType==CardComboType::PASS&&t2.packs.size()>=5)
+						{
+							ctt[j]++,ctt[k]++;
+							continue;
+						}
+						fl=1;
+						int cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==i)
+							{
+								S.insert(*it),cct++;
+								if(cct==4)break;
+							}
+						}
+						cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==j)
+							{
+								S.insert(*it),cct++;
+								if(cct==1)break;
+							}
+						}
+						cct=0;
+						for(auto it=begin;it!=end;it++)
+						{
+							if(card2level(*it)==k)
+							{
+								S.insert(*it),cct++;
+								if(cct==1)break;
+							}
+						}
+						return CardCombo(S.begin(),S.end());
+					}
+				}
+			}
+		}
+		if(fl)return CardCombo(S.begin(),S.end());
+	}
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo find_four_two(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int las=-1)
+{
+	int *ctt=new int[25];
+	memcpy(ctt,cyt,sizeof(ctt));
+	set<Card>S;
+	bool fl=0;
+	for(int i=las+1;i<=11;i++)//飞机
+	{
+		if(cyt[i]<4)continue;
+		ctt[i]-=4;
+		CardCombo t1=find_single_line(ctt,begin,end,5,13);
+		CardCombo t2=find_double_line(ctt,begin,end,3,10);
+		for(int j=0;j<=11;j++)
+		{
+			for(int k=j+1;k<=11;k++)
+			{
+				if(cyt[j]==2&&cyt[k]==2)
+				{
+					ctt[j]-=2,ctt[k]-=2;
+					CardCombo t3=find_single_line(ctt,begin,end,5,13);
+					CardCombo t4=find_double_line(ctt,begin,end,3,10);
+					if(t1.comboType!=CardComboType::PASS&&t3.comboType==CardComboType::PASS&&t1.packs[0].level<4)
+					{
+						ctt[j]+=2,ctt[k]+=2;
+						continue;
+					}
+					if(t2.comboType!=CardComboType::PASS&&t4.comboType==CardComboType::PASS&&t2.packs.size()>=5)
+					{
+						ctt[j]+=2,ctt[k]+=2;
+						continue;
+					}
+					fl=1;
+					int cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==i)
+						{
+							S.insert(*it),cct++;
+							if(cct==4)break;
+						}
+					}
+					cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==j)
+						{
+							S.insert(*it),cct++;
+							if(cct==2)break;
+						}
+					}
+					cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==k)
+						{
+							S.insert(*it),cct++;
+							if(cct==2)break;
+						}
+					}
+				}
+			}
+		}
+		if(fl)return CardCombo(S.begin(),S.end());
+	}
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo find_single(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int las=-1)
+{
+	CardCombo t1=find_single_line(cyt,begin,end,5,13);
+	set<Card>S;
+	for(int i=las+1;i<=min(las+6,14);i++)
+	{
+		if(!cyt[i]||cyt[i]>=3)continue;
+		if(cyt[i]==1)
+		{
+			bool fl=0;
+			for(auto j:t1.packs)
+			{
+				if(i==j.level){fl=1;break;}
+			}
+			if(!fl)
+			{
+				for(auto j=begin;j!=end;j++)
+				{
+					if(card2level(*j)==i){S.insert(*j);break;}
+				}
+				return CardCombo(S.begin(),S.end());
+			}
+		}
+	}
+	int mid=(las+1+min(las+6,14))>>1;
+	for(int i=mid;i<=min(las+6,14);i++)
+	{
+		if(!cyt[i]||cyt[i]>=3)continue;
+		if(cyt[i])
+		{
+			for(auto j=begin;j!=end;j++)
+			{
+				if(card2level(*j)==i){S.insert(*j);break;}
+			}
+			return CardCombo(S.begin(),S.end());
+		}
+	}
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo find_double(int *cyt,CARD_ITERATOR begin, CARD_ITERATOR end,int las=-1)
+{
+	CardCombo t1=find_double_line(cyt,begin,end,3,10);
+	CardCombo t2=find_single_line(cyt,begin,end,5,13);
+	set<Card>S;
+	for(int i=las+1;i<=min(las+6,12);i++)
+	{
+		if(cyt[i]==2)
+		{
+			bool fl=0;
+			for(auto j:t1.packs)
+			{
+				if(i==j.level){fl=1;break;}
+			}
+			for(auto j:t2.packs)
+			{
+				if(i==j.level){fl=1;break;}
+			}
+			if(!fl)
+			{
+				int cct=0;
+				for(auto j=begin;j!=end;j++)
+				{
+					if(card2level(*j)==i)
+					{
+						S.insert(*j);
+						cct++;
+						if(cct==2)break;
+					}
+				}
+				return CardCombo(S.begin(),S.end());
+			}
+		}
+	}
+	if(rand()%2)return CardCombo();
+	int mid=(las+1+min(las+6,14))>>1;
+	for(int i=mid;i<=min(las+6,12);i++)
+	{
+		if(cyt[i]==3)
+		{
+			int cct=0;
+			for(auto j=begin;j!=end;j++)
+			{
+				if(card2level(*j)==i)
+				{
+					S.insert(*j);
+					cct++;
+					if(cct==2)break;
+				}
+			}
+			return CardCombo(S.begin(),S.end());
+		}
+	}
+	return CardCombo();
+}
+template <typename CARD_ITERATOR>
+CardCombo findFirstValid(CARD_ITERATOR begin, CARD_ITERATOR end)
+{
+	
+	int *cyt=new int[25];
+	for(int i=0;i<=20;i++)cyt[i]=0;
+	for(auto it=begin;it!=end;it++){cyt[card2level(*it)]++;}
+	if (lastValidCombo.comboType == CardComboType::PASS) // 如果不需要大过谁，只需要随便出
+	{
+		if(check(cyt))
+		{
+			return CardCombo(begin,end);
+		}else
+		{
+			bool fl=0;
+			set<Card>S;
+			CardCombo ret=find_plane_one(cyt,begin,end,-1);
+			if(ret.comboType!=CardComboType::PASS)return ret;
+			ret=find_plane_two(cyt,begin,end,-1);
+			if(ret.comboType!=CardComboType::PASS)return ret;
+			ret=find_single_line(cyt,begin,end,5,13);
+			if(ret.comboType!=CardComboType::PASS)return ret;
+			ret=find_double_line(cyt,begin,end,3,13);
+			if(ret.comboType!=CardComboType::PASS)return ret;
+			ret=find_three_one(cyt,begin,end,-1);
+			if(ret.comboType!=CardComboType::PASS)return ret;
+			ret=find_three_two(cyt,begin,end,-1);
+			if(ret.comboType!=CardComboType::PASS)return ret;
+			ret=find_four_one(cyt,begin,end,-1);
+			if(ret.comboType!=CardComboType::PASS)return ret;
+			ret=find_four_two(cyt,begin,end,-1);
+			if(ret.comboType!=CardComboType::PASS)return ret;
+			for(int i=0;i<=14;i++)
+			{
+				if(cyt[i]==2)
+				{
+					int cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==i)S.insert(*it),cct++;
+						if(cct==2)break;
+					}
+					return CardCombo(S.begin(),S.end());
+				}else if(cyt[i]==1)
+				{
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==i){S.insert(*it);break;}
+					}
+					return CardCombo(S.begin(),S.end());
+				}
+			}
+			for(int i=0;i<=12;i++)
+			{
+				if(cyt[i]==4)
+				{
+					int cct=0;
+					for(auto it=begin;it!=end;it++)
+					{
+						if(card2level(*it)==i)S.insert(*it),cct++;
+						if(cct==4)break;
+					}
+				}
+			}
+			return CardCombo(S.begin(),S.end());
+		}
+	}
+	// 然后先看一下是不是火箭，是的话就过
+	if (lastValidCombo.comboType == CardComboType::ROCKET)
+		return CardCombo();
+	
+	
+	
+	CardCombo ret=CardCombo();
+	int p1=0,p2=0;
+	for(int i=0;i<3;i++)
+	{
+		if(!p1&&i!=landlordPosition)p1=i;
+		else if(!p2&&i!=landlordPosition)p2=i;
+	}
+	if(myPosition==landlordPosition)
+	{
+		if(lastValidCombo.comboType==CardComboType::STRAIGHT)
+		{
+			ret=find_single_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(cardRemaining[p1]<=5||cardRemaining[p2]<=5)
+				{
+					return find_bomb(cyt,begin,end,-1);
+				}
+			}//else return ret;
+		}else if(lastValidCombo.comboType==CardComboType::STRAIGHT2)
+		{
+			ret=find_double_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(cardRemaining[p1]<=5||cardRemaining[p2]<=5)
+				{
+					return find_bomb(cyt,begin,end,-1);
+				}
+			}//else return ret;
+		}else if(lastValidCombo.comboType==CardComboType::TRIPLET1)
+		{
+			ret=find_three_one(cyt,begin,end,lastValidCombo.packs[0].level);
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(cardRemaining[p1]<=5||cardRemaining[p2]<=5)
+				{
+					return find_bomb(cyt,begin,end,-1);
+				}
+			}//else return ret;
+		}else if(lastValidCombo.comboType==CardComboType::TRIPLET2)
+		{
+			ret=find_three_two(cyt,begin,end,lastValidCombo.packs[0].level);
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(cardRemaining[p1]<=5||cardRemaining[p2]<=5)
+				{
+					return find_bomb(cyt,begin,end,-1);
+				}
+			}//else return ret;
+		}else if(lastValidCombo.comboType==CardComboType::BOMB)
+		{
+			CardCombo ret=find_bomb(cyt,begin,end,lastValidCombo.packs[0].level);
+			//return ret;
+		}else if(lastValidCombo.comboType==CardComboType::PLANE1)
+		{
+			ret=find_plane_one(cyt,begin,end,lastValidCombo.packs[0].level);
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(cardRemaining[p1]<=5||cardRemaining[p2]<=5)
+				{
+					return find_bomb(cyt,begin,end,-1);
+				}
+			}//else return ret;
+		}else if(lastValidCombo.comboType==CardComboType::PLANE2)
+		{
+			ret=find_plane_two(cyt,begin,end,lastValidCombo.packs[0].level);
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(cardRemaining[p1]<=5||cardRemaining[p2]<=5)
+				{
+					return find_bomb(cyt,begin,end,-1);
+				}
+			}//else return ret;
+		}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE2)
+		{
+			ret=find_four_one(cyt,begin,end,lastValidCombo.packs[0].level);
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(cardRemaining[p1]<=5||cardRemaining[p2]<=5)
+				{
+					return find_bomb(cyt,begin,end,-1);
+				}
+			}//else return ret;
+		}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE4)
+		{
+			ret=find_four_two(cyt,begin,end,lastValidCombo.packs[0].level);
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(cardRemaining[p1]<=5||cardRemaining[p2]<=5)
+				{
+					return find_bomb(cyt,begin,end,-1);
+				}
+			}//else return ret;
+		}else if(lastValidCombo.comboType==CardComboType::SINGLE)
+		{
+			int las=lastValidCombo.packs[0].level;
+			ret=find_single(cyt,begin,end,las);
+			set<Card>S;
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(las==13)
+				{
+					if(cyt[14])
+					{
+						S.insert(53);
+						return CardCombo(S.begin(),S.end());
+					}
+				}else if(las==12)
+				{
+					if(cyt[13])
+					{
+						S.insert(52);
+						return CardCombo(S.begin(),S.end());
+					}
+				}else if(cardRemaining[p1]<=5||cardRemaining[p2]<=5)
+				{
+					return find_bomb(cyt,begin,end,-1);
+				}
+			}//else return ret;
+		}else if(lastValidCombo.comboType==CardComboType::PAIR)
+		{
+			ret=find_double(cyt,begin,end,lastValidCombo.packs[0].level);
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(cardRemaining[p1]<=5||cardRemaining[p2]<=5)
+				{
+					return find_bomb(cyt,begin,end,-1);
+				}
+			}//else return ret;
+		}
+	}else if(lastplayer!=landlordPosition&&(myPosition+1)%3==landlordPosition)
+	{
+		if(cardRemaining[landlordPosition]<lastValidCombo.cards.size())//地主没有威胁
+		{
+			s=clock();
+			int *ctt=new int[25];
+			memcpy(ctt,cyt,sizeof(ctt));
+			if(est_dfs(ctt,1,0)<10||lastValidCombo.packs[0].level>9)return CardCombo();
+			if(lastValidCombo.comboType==CardComboType::STRAIGHT)
+			{
+				ret=find_single_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::STRAIGHT2)
+			{
+				ret=find_double_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::TRIPLET1)
+			{
+				ret=find_three_one(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::TRIPLET2)
+			{
+				ret=find_three_two(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::BOMB)
+			{
+				//return CardCombo();
+			}else if(lastValidCombo.comboType==CardComboType::PLANE1)
+			{
+				ret=find_plane_one(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::PLANE2)
+			{
+				ret=find_plane_two(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE2)
+			{
+				ret=find_four_one(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE4)
+			{
+				ret=find_four_two(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::SINGLE)
+			{
+				int las=lastValidCombo.packs[0].level;
+				ret=find_single(cyt,begin,end,las);
+				set<Card>S;
+				if(ret.comboType==CardComboType::PASS&&rand()%2)
+				{
+					if(las==13)
+					{
+						if(cyt[14])
+						{
+							S.insert(53);
+							return CardCombo(S.begin(),S.end());
+						}
+					}else if(las==12)
+					{
+						if(cyt[13])
+						{
+							S.insert(52);
+							return CardCombo(S.begin(),S.end());
+						}
+					}else return CardCombo();
+				}//else return ret;
+			}else if(lastValidCombo.comboType==CardComboType::PAIR)
+			{
+				ret=find_double(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}
+		}else//地主有威胁
+		{
+			s=clock();
+			int *ctt=new int[25];
+			memcpy(ctt,cyt,sizeof(ctt));
+			if(lastValidCombo.packs[0].level>9)return CardCombo();//不需要垫
+			if(est_dfs(ctt,1,0)>10)//正常出牌
+			{
+
+				if(lastValidCombo.comboType==CardComboType::STRAIGHT)
+				{
+					ret=find_single_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::STRAIGHT2)
+				{
+					ret=find_double_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::TRIPLET1)
+				{
+					ret=find_three_one(cyt,begin,end,lastValidCombo.packs[0].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::TRIPLET2)
+				{
+					ret=find_three_two(cyt,begin,end,lastValidCombo.packs[0].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::BOMB)
+				{
+					return CardCombo();
+				}else if(lastValidCombo.comboType==CardComboType::PLANE1)
+				{
+					ret=find_plane_one(cyt,begin,end,lastValidCombo.packs[0].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::PLANE2)
+				{
+					ret=find_plane_two(cyt,begin,end,lastValidCombo.packs[0].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE2)
+				{
+					ret=find_four_one(cyt,begin,end,lastValidCombo.packs[0].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE4)
+				{
+					ret=find_four_two(cyt,begin,end,lastValidCombo.packs[0].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::SINGLE)
+				{
+					int las=lastValidCombo.packs[0].level;
+					ret=find_single(cyt,begin,end,las);
+					set<Card>S;
+					if(ret.comboType==CardComboType::PASS)
+					{
+						if(las==13)
+						{
+							if(cyt[14])
+							{
+								S.insert(53);
+								return CardCombo(S.begin(),S.end());
+							}
+						}else if(las==12)
+						{
+							if(cyt[13])
+							{
+								S.insert(52);
+								return CardCombo(S.begin(),S.end());
+							}
+						}else return CardCombo();
+					}//else return ret;
+				}else if(lastValidCombo.comboType==CardComboType::PAIR)
+				{
+					ret=find_double(cyt,begin,end,lastValidCombo.packs[0].level);
+					//return ret;
+				}
+			}else
+			{
+				if(lastValidCombo.comboType==CardComboType::STRAIGHT)
+				{
+					CardCombo ret=find_single_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::STRAIGHT2)
+				{
+					CardCombo ret=find_double_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::TRIPLET1)
+				{
+					CardCombo ret=find_three_one(cyt,begin,end,lastValidCombo.packs[0].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::TRIPLET2)
+				{
+					CardCombo ret=find_three_two(cyt,begin,end,lastValidCombo.packs[0].level);
+					//return ret;
+				}else if(lastValidCombo.comboType==CardComboType::BOMB)
+				{
+					return CardCombo();
+				}else if(lastValidCombo.comboType==CardComboType::PLANE1)
+				{
+					return CardCombo();
+				}else if(lastValidCombo.comboType==CardComboType::PLANE2)
+				{
+					return CardCombo();
+				}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE2)
+				{
+					return CardCombo();
+				}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE4)
+				{
+					return CardCombo();
+				}else if(lastValidCombo.comboType==CardComboType::SINGLE)
+				{
+					int las=lastValidCombo.packs[0].level+5;//尝试垫牌
+					CardCombo ret=find_single(cyt,begin,end,las);
+					set<Card>S;
+					if(ret.comboType==CardComboType::PASS)
+					{
+						las=lastValidCombo.packs[0].level;
+						ret=find_single(cyt,begin,end,las);
+						//return ret;
+					}//else return ret;
+				}else if(lastValidCombo.comboType==CardComboType::PAIR)
+				{
+					CardCombo ret=find_double(cyt,begin,end,lastValidCombo.packs[0].level+5);
+					if(ret.comboType==CardComboType::PASS)
+					{
+						ret=find_double(cyt,begin,end,lastValidCombo.packs[0].level);
+					}
+					//return ret;
+				}
+			}
+		}
+	}else if(lastplayer!=landlordPosition&&(myPosition+1)%3!=landlordPosition)
+	{
+		s=clock();
+		int *ctt=new int[25];
+		memcpy(ctt,cyt,sizeof(ctt));
+		if(lastValidCombo.packs[0].level>9)return CardCombo();//不需要垫
+		if(est_dfs(ctt,1,0)>10)//正常出牌
+		{
+			if(lastValidCombo.comboType==CardComboType::STRAIGHT)
+			{
+				ret=find_single_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::STRAIGHT2)
+			{
+				ret=find_double_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::TRIPLET1)
+			{
+				ret=find_three_one(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::TRIPLET2)
+			{
+				ret=find_three_two(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::BOMB)
+			{
+				return CardCombo();
+			}else if(lastValidCombo.comboType==CardComboType::PLANE1)
+			{
+				ret=find_plane_one(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::PLANE2)
+			{
+				ret=find_plane_two(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE2)
+			{
+				return CardCombo();
+			}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE4)
+			{
+				return CardCombo();
+			}else if(lastValidCombo.comboType==CardComboType::SINGLE)
+			{
+				int las=lastValidCombo.packs[0].level;
+				ret=find_single(cyt,begin,end,las);
+				set<Card>S;
+				if(ret.comboType==CardComboType::PASS&&rand()%2)
+				{
+					if(las==13)
+					{
+						if(cyt[14])
+						{
+							S.insert(53);
+							return CardCombo(S.begin(),S.end());
+						}
+					}else if(las==12)
+					{
+						if(cyt[13])
+						{
+							S.insert(52);
+							return CardCombo(S.begin(),S.end());
+						}
+					}else return CardCombo();
+				}//else return ret;
+			}else if(lastValidCombo.comboType==CardComboType::PAIR)
+			{
+				ret=find_double(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}
+		}else return CardCombo();
+	}else if((myPosition+1)%3==landlordPosition)
+	{
+		s=clock();
+		int *ctt=new int[25];
+		memcpy(ctt,cyt,sizeof(ctt));
+		if(est_dfs(ctt,1,0)>10)//正常出牌
+		{
+			if(lastValidCombo.comboType==CardComboType::STRAIGHT)
+			{
+				ret=find_single_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::STRAIGHT2)
+			{
+				ret=find_double_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::TRIPLET1)
+			{
+				ret=find_three_one(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::TRIPLET2)
+			{
+				ret=find_three_two(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::BOMB)
+			{
+				ret=find_bomb(cyt,begin,end,lastValidCombo.packs[0].level);
+				return CardCombo();
+			}else if(lastValidCombo.comboType==CardComboType::PLANE1)
+			{
+				ret=find_plane_one(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::PLANE2)
+			{
+				ret=find_plane_two(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE2)
+			{
+				ret=find_four_one(cyt,begin,end,lastValidCombo.packs[0].level);
+				////return ret;
+			}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE4)
+			{
+				ret=find_four_two(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}else if(lastValidCombo.comboType==CardComboType::SINGLE)
+			{
+				int las=lastValidCombo.packs[0].level;
+				ret=find_single(cyt,begin,end,las);
+				set<Card>S;
+				if(ret.comboType==CardComboType::PASS)
+				{
+					if(las==13)
+					{
+						if(cyt[14])
+						{
+							S.insert(53);
+							return CardCombo(S.begin(),S.end());
+						}
+					}else if(las==12)
+					{
+						if(cyt[13])
+						{
+							S.insert(52);
+							return CardCombo(S.begin(),S.end());
+						}
+					}else return CardCombo();
+				}//else
+			}else if(lastValidCombo.comboType==CardComboType::PAIR)
+			{
+				ret=find_double(cyt,begin,end,lastValidCombo.packs[0].level);
+				//return ret;
+			}
+		}else
+		{
+			if(lastValidCombo.comboType==CardComboType::STRAIGHT)
+			{
+				ret=find_single_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+			}else if(lastValidCombo.comboType==CardComboType::STRAIGHT2)
+			{
+				ret=find_double_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+			}else if(lastValidCombo.comboType==CardComboType::TRIPLET1)
+			{
+				ret=find_three_one(cyt,begin,end,lastValidCombo.packs[0].level);
+			}else if(lastValidCombo.comboType==CardComboType::TRIPLET2)
+			{
+				ret=find_three_two(cyt,begin,end,lastValidCombo.packs[0].level);
+			}else if(lastValidCombo.comboType==CardComboType::BOMB)
+			{
+				ret=find_bomb(cyt,begin,end,lastValidCombo.packs[0].level);
+				return CardCombo();
+			}else if(lastValidCombo.comboType==CardComboType::PLANE1)
+			{
+				ret=find_plane_one(cyt,begin,end,lastValidCombo.packs[0].level);
+			}else if(lastValidCombo.comboType==CardComboType::PLANE2)
+			{
+				ret=find_plane_two(cyt,begin,end,lastValidCombo.packs[0].level);
+			}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE2)
+			{
+				ret=find_four_one(cyt,begin,end,lastValidCombo.packs[0].level);
+			}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE4)
+			{
+				ret=find_four_two(cyt,begin,end,lastValidCombo.packs[0].level);
+			}else if(lastValidCombo.comboType==CardComboType::SINGLE)
+			{
+				int las=max((int)lastValidCombo.packs[0].level,min(lastValidCombo.packs[0].level+5,9));
+				ret=find_single(cyt,begin,end,las);
+				set<Card>S;
+				if(ret.comboType==CardComboType::PASS)
+				{
+					las=lastValidCombo.packs[0].level;
+					ret=find_single(cyt,begin,end,las);
+					if(ret.comboType!=CardComboType::PASS)return ret;
+					if(las==13)
+					{
+						if(cyt[14])
+						{
+							S.insert(53);
+							return CardCombo(S.begin(),S.end());
+						}
+					}else if(las==12)
+					{
+						if(cyt[13])
+						{
+							S.insert(52);
+							return CardCombo(S.begin(),S.end());
+						}
+					}else return CardCombo();
+				}
+			}else if(lastValidCombo.comboType==CardComboType::PAIR)
+			{
+				
+				int las=max((int)lastValidCombo.packs[0].level,min(lastValidCombo.packs[0].level+5,9));
+				ret=find_double(cyt,begin,end,las);
+				if(ret.comboType==CardComboType::PASS)
+				{
+					las=lastValidCombo.packs[0].level;
+					ret=find_double(cyt,begin,end,las);
+				}
+			}
+		}
+	}else
+	{
+		s=clock();
+		int *ctt=new int[25];
+		memcpy(ctt,cyt,sizeof(ctt));
+		if(lastValidCombo.comboType==CardComboType::STRAIGHT)
+		{
+			CardCombo ret=find_single_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+			//return ret;
+		}else if(lastValidCombo.comboType==CardComboType::STRAIGHT2)
+		{
+			CardCombo ret=find_double_line(cyt,begin,end,lastValidCombo.packs.size(),lastValidCombo.packs.size(),lastValidCombo.packs[lastValidCombo.packs.size()-1].level);
+			//return ret;
+		}else if(lastValidCombo.comboType==CardComboType::TRIPLET1)
+		{
+			CardCombo ret=find_three_one(cyt,begin,end,lastValidCombo.packs[0].level);
+			//return ret;
+		}else if(lastValidCombo.comboType==CardComboType::TRIPLET2)
+		{
+			CardCombo ret=find_three_two(cyt,begin,end,lastValidCombo.packs[0].level);
+			//return ret;
+		}else if(lastValidCombo.comboType==CardComboType::BOMB)
+		{
 			return CardCombo();
-
-		// 现在打算从手牌中凑出同牌型的牌
-		auto deck = vector<Card>(begin, end); // 手牌
+		}else if(lastValidCombo.comboType==CardComboType::PLANE1)
+		{
+			CardCombo ret=find_plane_one(cyt,begin,end,lastValidCombo.packs[0].level);
+			//return ret;
+		}else if(lastValidCombo.comboType==CardComboType::PLANE2)
+		{
+			CardCombo ret=find_plane_two(cyt,begin,end,lastValidCombo.packs[0].level);
+			//return ret;
+		}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE2)
+		{
+			return CardCombo();
+		}else if(lastValidCombo.comboType==CardComboType::QUADRUPLE4)
+		{
+			return CardCombo();
+		}else if(lastValidCombo.comboType==CardComboType::SINGLE)
+		{
+			int las=lastValidCombo.packs[0].level;
+			ret=find_single(cyt,begin,end,las);
+			set<Card>S;
+			if(ret.comboType==CardComboType::PASS)
+			{
+				if(las==13)
+				{
+					if(cyt[14])
+					{
+						S.insert(53);
+						return CardCombo(S.begin(),S.end());
+					}
+				}else if(las==12)
+				{
+					if(cyt[13])
+					{
+						S.insert(52);
+						return CardCombo(S.begin(),S.end());
+					}
+				}else return CardCombo();
+			}
+		}else if(lastValidCombo.comboType==CardComboType::PAIR)
+		{
+			CardCombo ret=find_double(cyt,begin,end,lastValidCombo.packs[0].level);
+			//return ret;
+		}
+	}
+	return ret;
+	/*	auto deck = vector<Card>(begin, end); // 手牌
 		short counts[MAX_LEVEL + 1] = {};
 
 		unsigned short kindCount = 0;
@@ -409,8 +2177,8 @@ struct CardCombo
 			counts[card2level(c)]++;
 
 		// 手牌如果不够用，直接不用凑了，看看能不能炸吧
-		if (deck.size() < cards.size())
-			goto failure;
+		if (deck.size() < lastValidCombo.cards.size())
+			return CardCombo();
 
 		// 再数一下手牌里有多少种牌
 		for (short c : counts)
@@ -418,54 +2186,54 @@ struct CardCombo
 				kindCount++;
 
 		// 否则不断增大当前牌组的主牌，看看能不能找到匹配的牌组
-		{
+		
 			// 开始增大主牌
-			int mainPackCount = findMaxSeq();
+			int mainPackCount = lastValidCombo.findMaxSeq();
 			bool isSequential =
-				comboType == CardComboType::STRAIGHT ||
-				comboType == CardComboType::STRAIGHT2 ||
-				comboType == CardComboType::PLANE ||
-				comboType == CardComboType::PLANE1 ||
-				comboType == CardComboType::PLANE2 ||
-				comboType == CardComboType::SSHUTTLE ||
-				comboType == CardComboType::SSHUTTLE2 ||
-				comboType == CardComboType::SSHUTTLE4;
+				lastValidCombo.comboType == CardComboType::STRAIGHT ||
+				lastValidCombo.comboType == CardComboType::STRAIGHT2 ||
+				lastValidCombo.comboType == CardComboType::PLANE ||
+				lastValidCombo.comboType == CardComboType::PLANE1 ||
+				lastValidCombo.comboType == CardComboType::PLANE2 ||
+				lastValidCombo.comboType == CardComboType::SSHUTTLE ||
+				lastValidCombo.comboType == CardComboType::SSHUTTLE2 ||
+				lastValidCombo.comboType == CardComboType::SSHUTTLE4;
 			for (Level i = 1;; i++) // 增大多少
 			{
 				for (int j = 0; j < mainPackCount; j++)
 				{
-					int level = packs[j].level + i;
+					int level = lastValidCombo.packs[j].level + i;
 
 					// 各种连续牌型的主牌不能到2，非连续牌型的主牌不能到小王，单张的主牌不能超过大王
-					if ((comboType == CardComboType::SINGLE && level > MAX_LEVEL) ||
+					if ((lastValidCombo.comboType == CardComboType::SINGLE && level > MAX_LEVEL) ||
 						(isSequential && level > MAX_STRAIGHT_LEVEL) ||
-						(comboType != CardComboType::SINGLE && !isSequential && level >= level_joker))
-						goto failure;
+						(lastValidCombo.comboType != CardComboType::SINGLE && !isSequential && level >= level_joker))
+						return CardCombo();
 
 					// 如果手牌中这种牌不够，就不用继续增了
-					if (counts[level] < packs[j].count)
+					if (counts[level] < lastValidCombo.packs[j].count)
 						goto next;
 				}
 
 				{
 					// 找到了合适的主牌，那么从牌呢？
 					// 如果手牌的种类数不够，那从牌的种类数就不够，也不行
-					if (kindCount < packs.size())
+					if (kindCount < lastValidCombo.packs.size())
 						continue;
 
 					// 好终于可以了
 					// 计算每种牌的要求数目吧
 					short requiredCounts[MAX_LEVEL + 1] = {};
 					for (int j = 0; j < mainPackCount; j++)
-						requiredCounts[packs[j].level + i] = packs[j].count;
-					for (unsigned j = mainPackCount; j < packs.size(); j++)
+						requiredCounts[lastValidCombo.packs[j].level + i] = lastValidCombo.packs[j].count;
+					for (unsigned j = mainPackCount; j < lastValidCombo.packs.size(); j++)
 					{
 						Level k;
 						for (k = 0; k <= MAX_LEVEL; k++)
 						{
-							if (requiredCounts[k] || counts[k] < packs[j].count)
+							if (requiredCounts[k] || counts[k] < lastValidCombo.packs[j].count)
 								continue;
-							requiredCounts[k] = packs[j].count;
+							requiredCounts[k] = lastValidCombo.packs[j].count;
 							break;
 						}
 						if (k == MAX_LEVEL + 1) // 如果是都不符合要求……就不行了
@@ -487,72 +2255,33 @@ struct CardCombo
 				}
 
 			next:; // 再增大
-			}
-		}
+			}*/
+	
+	
 
-	failure:
-		// 实在找不到啊
-		// 最后看一下能不能炸吧
 
-		for (Level i = 0; i < level_joker; i++)
-			if (counts[i] == 4 && (comboType != CardComboType::BOMB || i > packs[0].level)) // 如果对方是炸弹，能炸的过才行
-			{
-				// 还真可以啊……
-				Card bomb[] = {Card(i * 4), Card(i * 4 + 1), Card(i * 4 + 2), Card(i * 4 + 3)};
-				return CardCombo(bomb, bomb + 4);
-			}
-
-		// 有没有火箭？
-		if (counts[level_joker] + counts[level_JOKER] == 2)
-		{
-			Card rocket[] = {card_joker, card_JOKER};
-			return CardCombo(rocket, rocket + 2);
-		}
-
-		// ……
-		return CardCombo();
-	}
-
-	void debugPrint()
-	{
-#ifndef _BOTZONE_ONLINE
-		std::cout << "【" << cardComboStrings[(int)comboType] << "共" << cards.size() << "张，大小序" << comboLevel << "】";
-#endif
-	}
-};
-
-/* 状态 */
-
-// 我的牌有哪些
-set<Card> myCards;
-
-// 地主明示的牌有哪些
-set<Card> landlordPublicCards;
-
-// 大家从最开始到现在都出过什么
-vector<vector<Card>> whatTheyPlayed[PLAYER_COUNT];
-
-// 当前要出的牌需要大过谁
-CardCombo lastValidCombo;
-
-// 大家还剩多少牌
-short cardRemaining[PLAYER_COUNT] = {17, 17, 17};
-
-// 我是几号玩家（0-地主，1-农民甲，2-农民乙）
-int myPosition;
-
-// 地主位置
-int landlordPosition = -1;
-
-// 地主叫分
-int landlordBid = -1;
-
-// 阶段
-Stage stage = Stage::BIDDING;
-
-// 自己的第一回合收到的叫分决策
-vector<int> bidInput;
-
+}
+/*
+PASS,		// 过
+	SINGLE,		// 单张
+	PAIR,		// 对子
+	STRAIGHT,	// 顺子
+	STRAIGHT2,	// 双顺
+	TRIPLET,	// 三条
+	TRIPLET1,	// 三带一
+	TRIPLET2,	// 三带二
+	BOMB,		// 炸弹
+	QUADRUPLE2, // 四带二（只）
+	QUADRUPLE4, // 四带二（对）
+	PLANE,		// 飞机
+	PLANE1,		// 飞机带小翼
+	PLANE2,		// 飞机带大翼
+	SSHUTTLE,	// 航天飞机
+	SSHUTTLE2,	// 航天飞机带小翼
+	SSHUTTLE4,	// 航天飞机带大翼
+	ROCKET,		// 火箭
+	INVALID		// 非法牌型
+*/
 namespace BotzoneIO
 {
 	using namespace std;
@@ -629,7 +2358,7 @@ namespace BotzoneIO
 				if (playerAction.size() == 0)
 					howManyPass++;
 				else
-					lastValidCombo = CardCombo(playedCards.begin(), playedCards.end());
+					lastValidCombo = CardCombo(playedCards.begin(), playedCards.end()),lastplayer=player;
 			}
 
 			if (howManyPass == 2)
@@ -680,184 +2409,7 @@ namespace BotzoneIO
 		cout << writer.write(result) << endl;
 	}
 }
-using namespace std;
-#include <ctime>
-clock_t s,e;
-int est_dfs(int *cyt,int typ,int las)//将牌拆解成不同的牌组进行估分，为避免重复按牌型顺序进行拆解，一个牌组的总评分为各牌型的评分之和减去牌型数量
-{
-	e=clock();
-	if(double(e-s)/CLOCKS_PER_SEC>0.85)return -0x3f3f3f3f;
-	bool fl=0;
-	int cnt=0;
-	for(int i=0;i<=14;i++)if(cyt[i]){fl=1;cnt+=cyt[i];}
-	if(!fl)return 0;
-	if(typ>7||las>14)return -0x3f3f3f3f;
-	int tempret=-0x3f3f3f3f;
-	tempret=max(tempret,est_dfs(cyt,typ+1,0));//不使用本牌型
-	if(typ==1)//王炸
-	{
-		bool fl=0;
-		if(cyt[14]&&cyt[13])
-		{
-			cyt[14]--,cyt[13]--;
-			int temp=est_dfs(cyt,typ+1,0)-1;
-			cyt[14]++,cyt[13]++;
-			tempret=max(tempret,temp+30);
-			fl=1;
-		}
-		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
-	}else if(typ==2)//四带
-	{
-		bool fl=0;
-		for(int i=las;i<=12;i++)
-		{
-			if(cyt[i]!=4)continue;
-			cyt[i]=0;
-			fl=1;
-			tempret=max(tempret,15+i+est_dfs(cyt,typ,i+1)-1);
-			tempret=max(tempret,est_dfs(cyt,typ,i+1));
-			for(int j=0;j<=14;j++)//四带一/二
-			{
-				for(int k=j+1;k<=14;k++)
-				{
-					if(cyt[j]&&cyt[k])
-					{
-						cyt[j]--,cyt[k]--;
-						tempret=max(tempret,7+i+est_dfs(cyt,typ,i+1)-1);
-						if(cyt[j]&&cyt[k])
-						{
-							cyt[j]--,cyt[k]--;
-							tempret=max(tempret,7+i+est_dfs(cyt,typ,i+1)-1);
-							cyt[j]++,cyt[k]++;
-						}
-						cyt[j]++,cyt[k]++;
-					}
-				}
-			}
-			cyt[i]=4;
-			break;
-		}
-		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
-	}else if(typ==3)//三带
-	{
-		bool fl=0;
-		for(int i=las;i<=12;i++)
-		{
-			if(cyt[i]<3)continue;
-			fl=1;
-			tempret=max(tempret,est_dfs(cyt,typ,i+1));
-			cyt[i]-=3;
-			for(int j=0;j<=14;j++)
-			{
-				if(cyt[j])
-				{
-					cyt[j]--;
-					tempret=max(tempret,i+3+est_dfs(cyt,typ,i+1)-1);
-					if(cyt[j])
-					{
-						cyt[j]--;
-						tempret=max(tempret,i+3+est_dfs(cyt,typ,i+1)-1);
-						cyt[j]++;
-					}
-					cyt[j]++;
-				}
-			}
-			cyt[i]+=3;
-			break;
-		}
-		for(int i=las;i<12;i++)
-		{
-			if(cyt[i]>=3&&cyt[i+1]>=3)
-			{
-				cyt[i]-=3,cyt[i+1]-=3;
-				for(int j=0;j<=14;j++)
-				{
-					for(int k=j+1;k<=14;k++)
-					{
-						if(cyt[j]&&cyt[k]&&i!=j&&i!=k)
-						{
-							cyt[j]--,cyt[k]--;
-							tempret=max(tempret,i+9+est_dfs(cyt,typ,i+2)-1);
-							if(cyt[j]&&cyt[k])
-							{
-								cyt[j]--,cyt[k]--;
-								tempret=max(tempret,i+9+est_dfs(cyt,typ,i+2)-1);
-								cyt[j]++,cyt[k]++;
-							}
-							cyt[j]++,cyt[k]++;
-						}
-					}
-				}
-				cyt[i]+=3,cyt[i+1]+=3;
-				break;
-			}
-		}
-		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
-	}else if(typ==4)//单顺
-	{
-		tempret=max(tempret,est_dfs(cyt,typ,las+1));
-		bool fl=0;
-		for(int i=5;i<=13;i++)
-		{
-			bool flag=0;
-			for(int j=0;j<i;j++)
-			{
-				if(!cyt[las+j]){flag=1;break;}
-			}
-			if(flag)break;
-			else 
-			{
-				fl=1;
-				for(int j=0;j<i;j++)cyt[las+j]--;
-				tempret=max(tempret,i+las+est_dfs(cyt,typ,las+1)-1);
-				for(int j=0;j<i;j++)cyt[las+j]++;
-			}
-		}
-		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
-	}else if(typ==5)//双顺
-	{
-		tempret=max(tempret,est_dfs(cyt,typ,las+1));
-		bool fl=0;
-		for(int i=3;i<=13;i++)
-		{
-			bool flag=0;
-			for(int j=0;j<i;j++)
-			{
-				if(cyt[las+j]<2){flag=1;break;}
-			}
-			if(flag)break;
-			else
-			{
-				fl=1;
-				for(int j=0;j<i;j++)cyt[las+j]-=2;
-				tempret=max(tempret,i*3/2+las+est_dfs(cyt,typ,las+1)-1);
-				for(int j=0;j<i;j++)cyt[las+j]-=2;
-			}
-		}
-		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
-	}else if(typ==6)//对
-	{
-		bool fl=0;
-		for(int i=las;i<=12;i++)
-		{
-			if(cyt[i]<2)continue;
-			tempret=max(tempret,est_dfs(cyt,typ,i+1));
-			cyt[i]-=2;
-			tempret=max(tempret,max((i-10),0)+est_dfs(cyt,typ,i+1)-1);
-			cyt[i]+=2;
-			fl=1;		
-			break;
-		}
-		if(!fl)tempret=max(tempret,est_dfs(cyt,typ+1,0));
-	}else if(typ==7)//单
-	{
-		int temps=0;
-		for(int i=0;i<=14;i++)temps+=max(0,(i-11)*cyt[i]);
-		temps-=cnt;
-		tempret=max(tempret,temps);
-	}
-	return tempret;
-}
+
 int main()
 {
 	srand(time(nullptr));
@@ -879,11 +2431,11 @@ int main()
 		s=clock();
 		int sc=est_dfs(cyt,1,0);
 		int bidValue=0;
-		if(sc>80)bidValue=3;
-		else if(sc>60)bidValue=2;
-		else if(sc>40)bidValue=1;
+		if(sc>55)bidValue=3;
+		else if(sc>35)bidValue=2;
+		else if(sc>20)bidValue=1;
 		else bidValue=0;
-		if(bidValue<maxBid)bidValue=0;
+		if(bidValue<=maxBid)bidValue=0;
 		// 决策结束，输出结果（你只需修改以上部分）
 
 		BotzoneIO::bid(bidValue);
@@ -893,7 +2445,7 @@ int main()
 		// 做出决策（你只需修改以下部分）
 
 		// findFirstValid 函数可以用作修改的起点
-		CardCombo myAction = lastValidCombo.findFirstValid(myCards.begin(), myCards.end());
+		CardCombo myAction = findFirstValid(myCards.begin(), myCards.end());
 
 		// 是合法牌
 		assert(myAction.comboType != CardComboType::INVALID);
@@ -902,7 +2454,7 @@ int main()
 			// 在上家没过牌的时候过牌
 			(lastValidCombo.comboType != CardComboType::PASS && myAction.comboType == CardComboType::PASS) ||
 			// 在上家没过牌的时候出打得过的牌
-			(lastValidCombo.comboType != CardComboType::PASS && lastValidCombo.canBeBeatenBy(myAction)) ||
+			(lastValidCombo.comboType != CardComboType::PASS && canBeBeatenBy(myAction)) ||
 			// 在上家过牌的时候出合法牌
 			(lastValidCombo.comboType == CardComboType::PASS && myAction.comboType != CardComboType::INVALID));
 
